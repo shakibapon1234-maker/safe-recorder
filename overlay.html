@@ -1,29 +1,263 @@
-<!doctype html><html><head><meta charset="utf-8"><style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:rgba(0,0,0,.18);cursor:crosshair;font:16px 'Segoe UI','Nirmala UI',sans-serif;user-select:none}
-#bar{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#0b1630;color:#fff;padding:10px 22px;border-radius:30px;border:2px solid #f5b301;z-index:5}
-.box{position:fixed;border:2px solid #ff3b4e;background:rgba(255,59,78,.25)}
-.box b{position:absolute;top:-12px;right:-12px;width:24px;height:24px;border-radius:50%;background:#ff3b4e;color:#fff;text-align:center;line-height:24px;cursor:pointer;font-size:14px}
-#cur{position:fixed;border:2px dashed #f5b301;background:rgba(245,179,1,.2);display:none}
-</style></head><body><div id="bar">ড্র্যাগ করে বক্স আঁকুন • বক্সের ✕ চাপলে মুছবে • <b>Enter</b> = সেভ • <b>Escape</b> = বাতিল</div><div id="cur"></div><div id="boxes"></div>
-<script>
-let boxes = [], start = null; const W = () => innerWidth, H = () => innerHeight;
-const cur = document.getElementById('cur'), holder = document.getElementById('boxes');
-function render() {
-  holder.innerHTML = '';
-  boxes.forEach((b, i) => { const d = document.createElement('div'); d.className = 'box';
-    d.style.left = b.x * W() + 'px'; d.style.top = b.y * H() + 'px'; d.style.width = b.w * W() + 'px'; d.style.height = b.h * H() + 'px';
-    const x = document.createElement('b'); x.textContent = '✕';
-    x.addEventListener('mousedown', (e) => { e.stopPropagation(); boxes.splice(i, 1); render(); });
-    d.appendChild(x); holder.appendChild(d); });
-}
-window.api.onInitOverlay((d) => { boxes = (d.boxes || []).slice(); render(); });
-document.addEventListener('mousedown', (e) => { start = { x: e.clientX, y: e.clientY }; });
-document.addEventListener('mousemove', (e) => { if (!start) return;
-  cur.style.display = 'block'; cur.style.left = Math.min(start.x, e.clientX) + 'px'; cur.style.top = Math.min(start.y, e.clientY) + 'px';
-  cur.style.width = Math.abs(e.clientX - start.x) + 'px'; cur.style.height = Math.abs(e.clientY - start.y) + 'px'; });
-document.addEventListener('mouseup', (e) => { if (!start) return; cur.style.display = 'none';
-  const w = Math.abs(e.clientX - start.x), h = Math.abs(e.clientY - start.y);
-  if (w > 8 && h > 8) boxes.push({ x: Math.min(start.x, e.clientX) / W(), y: Math.min(start.y, e.clientY) / H(), w: w / W(), h: h / H() });
-  start = null; render(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Enter') window.api.overlayDone(boxes); if (e.key === 'Escape') window.api.overlayCancel(); });
-</script></body></html>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Blur Box Editor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    html, body {
+      margin: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.28);
+      cursor: crosshair;
+      font-family: 'Segoe UI', 'Nirmala UI', sans-serif;
+    }
+
+    /* Top Instruction & Action Bar */
+    #bar {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(11, 22, 48, 0.96);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      color: #fff;
+      padding: 10px 22px;
+      border-radius: 9999px;
+      border: 2px solid #3b82f6;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 24px rgba(59, 130, 246, 0.6);
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: default;
+    }
+
+    .badge-blue {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #1d4ed8;
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    .instructions {
+      font-size: 14px;
+      font-weight: 500;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .instructions b {
+      color: #60a5fa;
+    }
+
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    .btn:hover {
+      transform: scale(1.05);
+    }
+    .btn-save {
+      background: #16a34a;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(22, 163, 74, 0.4);
+    }
+    .btn-save:hover {
+      background: #15803d;
+    }
+    .btn-cancel {
+      background: #dc2626;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(220, 38, 38, 0.4);
+    }
+    .btn-cancel:hover {
+      background: #b91c1c;
+    }
+    .btn-clear {
+      background: rgba(255, 255, 255, 0.15);
+      color: #cbd5e1;
+    }
+    .btn-clear:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Blur Boxes */
+    .box {
+      position: fixed;
+      border: 2px solid #ff3b4e;
+      background: rgba(255, 59, 78, 0.25);
+      border-radius: 4px;
+      z-index: 100;
+    }
+    .box b {
+      position: absolute;
+      top: -12px;
+      right: -12px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #ff3b4e;
+      color: #fff;
+      text-align: center;
+      line-height: 24px;
+      cursor: pointer;
+      font-size: 13px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+    .box b:hover {
+      transform: scale(1.15);
+      background: #dc2626;
+    }
+
+    /* Dragging rectangle */
+    #cur {
+      position: fixed;
+      border: 2px dashed #3b82f6;
+      background: rgba(59, 130, 246, 0.2);
+      border-radius: 4px;
+      display: none;
+      z-index: 50;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <div class="badge-blue">🔷 ব্লার মোড</div>
+    <div class="instructions">ড্র্যাগ করে বক্স আঁকুন • বক্সের <b>✕</b> চাপলে মুছবে</div>
+    <div class="btn-group">
+      <button type="button" class="btn btn-save" id="btnSave">✔ সেভ (Enter)</button>
+      <button type="button" class="btn btn-cancel" id="btnCancel">✕ বাতিল (Escape)</button>
+      <button type="button" class="btn btn-clear" id="btnClear">🗑 সব মুছুন</button>
+    </div>
+  </div>
+
+  <div id="cur"></div>
+  <div id="boxes"></div>
+
+  <script>
+    let boxes = [], start = null;
+    const W = () => window.innerWidth, H = () => window.innerHeight;
+    const cur = document.getElementById('cur'), holder = document.getElementById('boxes');
+    const bar = document.getElementById('bar');
+    const btnSave = document.getElementById('btnSave');
+    const btnCancel = document.getElementById('btnCancel');
+    const btnClear = document.getElementById('btnClear');
+
+    function render() {
+      holder.innerHTML = '';
+      boxes.forEach((b, i) => {
+        const d = document.createElement('div');
+        d.className = 'box';
+        d.style.left = (b.x * W()) + 'px';
+        d.style.top = (b.y * H()) + 'px';
+        d.style.width = (b.w * W()) + 'px';
+        d.style.height = (b.h * H()) + 'px';
+        const x = document.createElement('b');
+        x.textContent = '✕';
+        x.title = 'মুছুন';
+        x.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
+          boxes.splice(i, 1);
+          render();
+        });
+        d.appendChild(x);
+        holder.appendChild(d);
+      });
+    }
+
+    window.api.onInitOverlay((d) => {
+      boxes = (d.boxes || []).slice();
+      render();
+      window.focus();
+    });
+
+    bar.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+    });
+
+    btnSave.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.api.overlayDone(boxes);
+    });
+
+    btnCancel.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.api.overlayCancel();
+    });
+
+    btnClear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      boxes = [];
+      render();
+    });
+
+    document.addEventListener('mousedown', (e) => {
+      if (e.target.closest('#bar')) return;
+      start = { x: e.clientX, y: e.clientY };
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!start) return;
+      cur.style.display = 'block';
+      cur.style.left = Math.min(start.x, e.clientX) + 'px';
+      cur.style.top = Math.min(start.y, e.clientY) + 'px';
+      cur.style.width = Math.abs(e.clientX - start.x) + 'px';
+      cur.style.height = Math.abs(e.clientY - start.y) + 'px';
+    });
+
+    document.addEventListener('mouseup', (e) => {
+      if (!start) return;
+      cur.style.display = 'none';
+      const w = Math.abs(e.clientX - start.x);
+      const h = Math.abs(e.clientY - start.y);
+      if (w > 8 && h > 8) {
+        boxes.push({
+          x: Math.min(start.x, e.clientX) / W(),
+          y: Math.min(start.y, e.clientY) / H(),
+          w: w / W(),
+          h: h / H()
+        });
+      }
+      start = null;
+      render();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        window.api.overlayDone(boxes);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        window.api.overlayCancel();
+      }
+    });
+  </script>
+</body>
+</html>

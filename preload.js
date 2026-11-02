@@ -12,8 +12,19 @@ contextBridge.exposeInMainWorld('api', {
   selectSavePath: () => ipcRenderer.invoke('select-save-path'),
   showIndicator: (text, color) => ipcRenderer.send('show-indicator', text, color),
   hideIndicator: () => ipcRenderer.send('hide-indicator'),
+  showCountdown: (number) => ipcRenderer.send('show-countdown', number),
+  hideCountdown: () => ipcRenderer.send('hide-countdown'),
+  showToast: (data) => ipcRenderer.send('show-toast', data),
+  updateRecHud: (data) => ipcRenderer.send('update-rec-hud', data),
+  hideRecHud: () => ipcRenderer.send('hide-rec-hud'),
+  hudStopClicked: () => ipcRenderer.send('hud-stop-clicked'),
+  hudMuteClicked: () => ipcRenderer.send('hud-mute-clicked'),
+  onHudShowToast: (cb) => ipcRenderer.on('hud-show-toast', (_e, d) => cb(d)),
+  onHudUpdateRec: (cb) => ipcRenderer.on('hud-update-rec', (_e, d) => cb(d)),
   onHotkey: (cb) => ipcRenderer.on('hotkey', (_e, k) => cb(k)),
   onHotkeyFail: (cb) => ipcRenderer.on('hotkey-fail', (_e, k) => cb(k)),
   onBoxes: (cb) => ipcRenderer.on('boxes-updated', (_e, b) => cb(b)),
-  onInitOverlay: (cb) => ipcRenderer.on('init-overlay', (_e, d) => cb(d))
+  onInitOverlay: (cb) => ipcRenderer.on('init-overlay', (_e, d) => cb(d)),
+  onBlurStatus: (cb) => ipcRenderer.on('blur-status', (_e, s) => cb(s)),
+  onBlurOverlayCancelled: (cb) => ipcRenderer.on('blur-overlay-cancelled', () => cb())
 });

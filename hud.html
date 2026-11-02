@@ -1,0 +1,277 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Windows / Steam Recording floating bar */
+    #recBar {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: rgba(15, 23, 42, 0.94);
+      border: 1.5px solid rgba(239, 68, 68, 0.7);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 18px rgba(239, 68, 68, 0.35);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-radius: 9999px;
+      padding: 7px 18px;
+      color: white;
+      cursor: default;
+      transition: all 0.2s ease;
+      z-index: 5;
+    }
+    #recBar.show {
+      display: flex;
+    }
+    .rec-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .red-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 10px #ef4444, 0 0 16px rgba(239, 68, 68, 0.8);
+      animation: pulse-dot 1.2s infinite ease-in-out;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.55; }
+    }
+    .rec-label {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #ef4444;
+    }
+    .timer {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffffff;
+      min-width: 50px;
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+    .sep {
+      width: 1px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.22);
+    }
+    .blur-pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 12px;
+      background: rgba(59, 130, 246, 0.25);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.5);
+    }
+    .blur-pill.off {
+      background: rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.5);
+    }
+    .hud-btn {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 13px;
+      color: white;
+      transition: all 0.15s ease;
+    }
+    .hud-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: scale(1.1);
+    }
+    .hud-btn.stop {
+      background: rgba(239, 68, 68, 0.35);
+      border-color: rgba(239, 68, 68, 0.7);
+      color: #fca5a5;
+    }
+    .hud-btn.stop:hover {
+      background: #ef4444;
+      color: white;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.8);
+    }
+    .hud-btn.muted {
+      background: rgba(239, 68, 68, 0.35);
+      border-color: rgba(239, 68, 68, 0.6);
+    }
+
+    /* Toast Notification container */
+    #toastContainer {
+      position: absolute;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 22px;
+      border-radius: 9999px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      opacity: 0;
+      transform: translateY(-8px);
+      white-space: nowrap;
+      cursor: default;
+      z-index: 10;
+    }
+    #toastContainer.show {
+      display: flex;
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .toast-blue {
+      background: rgba(14, 42, 90, 0.95);
+      border: 2px solid #3b82f6;
+      box-shadow: 0 0 24px rgba(59, 130, 246, 0.6);
+    }
+    .toast-warn {
+      background: rgba(50, 20, 20, 0.95);
+      border: 2px solid #ef4444;
+      box-shadow: 0 0 24px rgba(239, 68, 68, 0.6);
+    }
+    .toast-info {
+      background: rgba(20, 32, 54, 0.95);
+      border: 2px solid #60a5fa;
+      box-shadow: 0 0 20px rgba(96, 165, 250, 0.5);
+    }
+    .toast-icon {
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .toast-text {
+      display: flex;
+      flex-direction: column;
+    }
+    .toast-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .toast-sub {
+      font-size: 11px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.85);
+      margin-top: 1px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Windows / Steam Recording Bar -->
+  <div id="recBar">
+    <div class="rec-badge">
+      <div class="red-dot"></div>
+      <span class="rec-label">REC</span>
+    </div>
+    <div class="timer" id="recTimer">00:00</div>
+    <div class="sep"></div>
+    <div class="blur-pill" id="hudBlur">🛡️ Blur ON</div>
+    <div class="hud-btn" id="hudMute" title="মিউট / আনমিউট (Ctrl+Alt+M)">🎙️</div>
+    <div class="hud-btn stop" id="hudStop" title="রেকর্ড বন্ধ করুন (Ctrl+Alt+R)">⏹</div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toastContainer">
+    <div class="toast-icon" id="tIcon">🔷</div>
+    <div class="toast-text">
+      <span class="toast-title" id="tTitle">ব্লার মোড সক্রিয়</span>
+      <span class="toast-sub" id="tSub">Blur Active</span>
+    </div>
+  </div>
+
+  <script>
+    let toastTimer = null;
+    const toast = document.getElementById('toastContainer');
+    const tIcon = document.getElementById('tIcon');
+    const tTitle = document.getElementById('tTitle');
+    const tSub = document.getElementById('tSub');
+
+    const recBar = document.getElementById('recBar');
+    const recTimer = document.getElementById('recTimer');
+    const hudBlur = document.getElementById('hudBlur');
+    const hudMute = document.getElementById('hudMute');
+    const hudStop = document.getElementById('hudStop');
+
+    let isRecording = false;
+
+    window.api.onHudShowToast((data) => {
+      clearTimeout(toastTimer);
+      toast.className = 'toast-' + (data.type || 'info');
+      tIcon.textContent = data.icon || (data.type === 'blue' ? '🔷' : (data.type === 'warn' ? '⏸️' : 'ℹ️'));
+      tTitle.textContent = data.title || '';
+      tSub.textContent = data.sub || '';
+
+      if (isRecording) {
+        recBar.classList.remove('show');
+      }
+      toast.classList.add('show');
+
+      const dur = data.duration || 2500;
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('show');
+        if (isRecording) {
+          recBar.classList.add('show');
+        } else {
+          window.api.hideRecHud();
+        }
+      }, dur);
+    });
+
+    window.api.onHudUpdateRec((data) => {
+      if (data.active) {
+        isRecording = true;
+        recBar.classList.add('show');
+        if (data.time) recTimer.textContent = data.time;
+        if (data.blurOn !== undefined) {
+          hudBlur.textContent = data.blurOn ? '🛡️ Blur ON' : '⚠ Blur OFF';
+          hudBlur.className = 'blur-pill ' + (data.blurOn ? '' : 'off');
+        }
+        if (data.muted !== undefined) {
+          hudMute.textContent = data.muted ? '🔇' : '🎙️';
+          hudMute.className = 'hud-btn ' + (data.muted ? 'muted' : '');
+          hudMute.title = data.muted ? 'আনমিউট করুন (Ctrl+Alt+M)' : 'মিউট করুন (Ctrl+Alt+M)';
+        }
+      } else {
+        isRecording = false;
+        recBar.classList.remove('show');
+      }
+    });
+
+    hudStop.addEventListener('click', () => {
+      window.api.hudStopClicked();
+    });
+
+    hudMute.addEventListener('click', () => {
+      window.api.hudMuteClicked();
+    });
+  </script>
+</body>
+</html>
+
