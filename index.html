@@ -1,0 +1,24 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Safe Recorder</title><style>
+*{box-sizing:border-box}body{margin:0;padding:16px;background:#0b1630;color:#fff;font:15px 'Segoe UI','Nirmala UI',sans-serif}
+h1{margin:0 0 10px;font-size:20px}.card{background:#142348;border-radius:14px;padding:14px;margin-bottom:12px}
+canvas{width:100%;background:#000;border-radius:8px;display:block;border:2px solid #2a3b6e}
+.row{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}.row>*{flex:1}
+button{border:0;border-radius:10px;padding:12px;font:inherit;font-weight:700;color:#fff;cursor:pointer;background:#2a4a9a}
+button.rec{background:#e11d2e}button.on{background:#14a44d}button.off{background:#c0392b}button:disabled{opacity:.5}
+small{color:#9fb3d9}label{display:flex;gap:6px;align-items:center}select,input[type=range]{width:100%}
+#status{font-weight:700;margin-top:8px}#msg{color:#ffd24d;margin-top:6px;min-height:20px}
+</style></head><body>
+<h1>🎥 Safe Recorder</h1>
+<div class="card"><canvas id="cv" width="640" height="360"></canvas><small id="hint">প্রিভিউ বন্ধ। "প্রিভিউ" বা "রেকর্ড" চাপুন। (এই উইন্ডো রেকর্ডিংয়ে আসে না)</small>
+<div id="status">⏹ প্রস্তুত</div><div id="msg"></div></div>
+<div class="card"><div class="row"><button id="bRec" class="rec">⏺ রেকর্ড শুরু (Ctrl+Alt+R)</button><button id="bPrev">👁 প্রিভিউ</button></div>
+<div class="row"><button id="bBlur" class="on">ব্লার ON (Ctrl+Alt+B)</button></div>
+<small id="boxInfo"></small></div>
+<div class="card"><div class="row"><label>ব্লারের ঝাপসা মাত্রা <span id="vS"></span></label><input id="rS" type="range" min="12" max="48" step="3"></div>
+<div class="row"><div>FPS<select id="sF"><option>30</option><option>60</option></select></div>
+<div>বিটরেট (Mbps)<select id="sB"><option>8</option><option>12</option><option>20</option></select></div>
+<div>কোডেক<select id="sC"><option value="h264">H.264 (হালকা)</option><option value="vp8">VP8</option><option value="vp9">VP9 (ভারী)</option></select></div></div>
+<div class="row"><label><input type="checkbox" id="cM"> মাইক</label><label><input type="checkbox" id="cS"> সিস্টেম সাউন্ড</label><label><input type="checkbox" id="cP"> MP4 তৈরি করুন</label></div>
+<div class="row"><button id="bPath">📁 সেভ লোকেশন বাছুন</button><button id="bOpen" disabled>📁 শেষ ফাইল দেখুন</button></div>
+<small id="pathInfo">ডিফল্ট: Videos\SafeRecorder</small></div>
+<script src="compositor.js"></script><script src="renderer.js"></script></body></html>
