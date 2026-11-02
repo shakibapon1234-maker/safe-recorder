@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('api', {
   showToast: (data) => ipcRenderer.send('show-toast', data),
   updateRecHud: (data) => ipcRenderer.send('update-rec-hud', data),
   hideRecHud: () => ipcRenderer.send('hide-rec-hud'),
+  hudPauseClicked: () => ipcRenderer.send('hud-pause-clicked'),
   hudStopClicked: () => ipcRenderer.send('hud-stop-clicked'),
   hudMuteClicked: () => ipcRenderer.send('hud-mute-clicked'),
   onHudShowToast: (cb) => ipcRenderer.on('hud-show-toast', (_e, d) => cb(d)),

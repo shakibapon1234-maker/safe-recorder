@@ -19,14 +19,14 @@
     #recBar {
       display: none;
       align-items: center;
-      gap: 12px;
-      background: rgba(15, 23, 42, 0.94);
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.95);
       border: 1.5px solid rgba(239, 68, 68, 0.7);
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 18px rgba(239, 68, 68, 0.35);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.65), 0 0 18px rgba(239, 68, 68, 0.35);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border-radius: 9999px;
-      padding: 7px 18px;
+      padding: 7px 16px;
       color: white;
       cursor: default;
       transition: all 0.2s ease;
@@ -35,10 +35,15 @@
     #recBar.show {
       display: flex;
     }
+    #recBar.is-paused {
+      border-color: rgba(245, 158, 11, 0.8);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.65), 0 0 18px rgba(245, 158, 11, 0.4);
+    }
+
     .rec-badge {
       display: flex;
       align-items: center;
-      gap: 7px;
+      gap: 6px;
     }
     .red-dot {
       width: 12px;
@@ -47,6 +52,11 @@
       background: #ef4444;
       box-shadow: 0 0 10px #ef4444, 0 0 16px rgba(239, 68, 68, 0.8);
       animation: pulse-dot 1.2s infinite ease-in-out;
+    }
+    .red-dot.paused {
+      background: #f59e0b;
+      box-shadow: 0 0 10px #f59e0b;
+      animation: none;
     }
     @keyframes pulse-dot {
       0%, 100% { transform: scale(1); opacity: 1; }
@@ -58,24 +68,30 @@
       letter-spacing: 0.5px;
       color: #ef4444;
     }
+    .rec-label.paused {
+      color: #f59e0b;
+    }
+
     .timer {
       font-family: 'Consolas', 'Courier New', monospace;
       font-size: 15px;
       font-weight: 700;
       color: #ffffff;
-      min-width: 50px;
+      min-width: 48px;
       text-align: center;
       letter-spacing: 0.5px;
     }
+
     .sep {
       width: 1px;
       height: 18px;
       background: rgba(255, 255, 255, 0.22);
     }
+
     .blur-pill {
       font-size: 11px;
       font-weight: 600;
-      padding: 3px 9px;
+      padding: 3px 8px;
       border-radius: 12px;
       background: rgba(59, 130, 246, 0.25);
       color: #93c5fd;
@@ -86,12 +102,13 @@
       color: #fca5a5;
       border: 1px solid rgba(239, 68, 68, 0.5);
     }
+
     .hud-btn {
       background: rgba(255, 255, 255, 0.12);
       border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 50%;
-      width: 28px;
-      height: 28px;
+      width: 30px;
+      height: 30px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -101,9 +118,41 @@
       transition: all 0.15s ease;
     }
     .hud-btn:hover {
-      background: rgba(255, 255, 255, 0.25);
-      transform: scale(1.1);
+      transform: scale(1.12);
     }
+
+    /* Pause / Resume button states */
+    .hud-btn.pause-btn {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #ffffff;
+    }
+    .hud-btn.pause-btn.paused {
+      background: #10b981;
+      border-color: #059669;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+      animation: pulse-resume 1.5s infinite;
+    }
+    @keyframes pulse-resume {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    /* Mute button states */
+    .hud-btn.mic-btn {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: rgba(16, 185, 129, 0.5);
+      color: #6ee7b7;
+    }
+    .hud-btn.mic-btn.muted {
+      background: #ef4444;
+      border-color: #dc2626;
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.7);
+    }
+
+    /* Stop button */
     .hud-btn.stop {
       background: rgba(239, 68, 68, 0.35);
       border-color: rgba(239, 68, 68, 0.7);
@@ -113,10 +162,6 @@
       background: #ef4444;
       color: white;
       box-shadow: 0 0 12px rgba(239, 68, 68, 0.8);
-    }
-    .hud-btn.muted {
-      background: rgba(239, 68, 68, 0.35);
-      border-color: rgba(239, 68, 68, 0.6);
     }
 
     /* Toast Notification container */
@@ -186,14 +231,15 @@
 <body>
   <!-- Windows / Steam Recording Bar -->
   <div id="recBar">
-    <div class="rec-badge">
-      <div class="red-dot"></div>
-      <span class="rec-label">REC</span>
+    <div class="rec-badge" id="recBadge">
+      <div class="red-dot" id="recDot"></div>
+      <span class="rec-label" id="recLabel">REC</span>
     </div>
     <div class="timer" id="recTimer">00:00</div>
     <div class="sep"></div>
     <div class="blur-pill" id="hudBlur">🛡️ Blur ON</div>
-    <div class="hud-btn" id="hudMute" title="মিউট / আনমিউট (Ctrl+Alt+M)">🎙️</div>
+    <div class="hud-btn pause-btn" id="hudPause" title="পজ করুন / Pause (Ctrl+Alt+P)">⏸️</div>
+    <div class="hud-btn mic-btn" id="hudMute" title="মিউট / আনমিউট (Ctrl+Alt+M)">🎙️</div>
     <div class="hud-btn stop" id="hudStop" title="রেকর্ড বন্ধ করুন (Ctrl+Alt+R)">⏹</div>
   </div>
 
@@ -214,8 +260,11 @@
     const tSub = document.getElementById('tSub');
 
     const recBar = document.getElementById('recBar');
+    const recDot = document.getElementById('recDot');
+    const recLabel = document.getElementById('recLabel');
     const recTimer = document.getElementById('recTimer');
     const hudBlur = document.getElementById('hudBlur');
+    const hudPause = document.getElementById('hudPause');
     const hudMute = document.getElementById('hudMute');
     const hudStop = document.getElementById('hudStop');
 
@@ -248,20 +297,49 @@
       if (data.active) {
         isRecording = true;
         recBar.classList.add('show');
+
         if (data.time) recTimer.textContent = data.time;
+
+        // Paused state
+        if (data.paused !== undefined) {
+          if (data.paused) {
+            recBar.classList.add('is-paused');
+            recDot.className = 'red-dot paused';
+            recLabel.className = 'rec-label paused';
+            recLabel.textContent = 'PAUSED';
+            hudPause.textContent = '▶️';
+            hudPause.className = 'hud-btn pause-btn paused';
+            hudPause.title = 'চালু করুন / Resume (Ctrl+Alt+P)';
+          } else {
+            recBar.classList.remove('is-paused');
+            recDot.className = 'red-dot';
+            recLabel.className = 'rec-label';
+            recLabel.textContent = 'REC';
+            hudPause.textContent = '⏸️';
+            hudPause.className = 'hud-btn pause-btn';
+            hudPause.title = 'পজ করুন / Pause (Ctrl+Alt+P)';
+          }
+        }
+
         if (data.blurOn !== undefined) {
           hudBlur.textContent = data.blurOn ? '🛡️ Blur ON' : '⚠ Blur OFF';
           hudBlur.className = 'blur-pill ' + (data.blurOn ? '' : 'off');
         }
+
+        // Muted state
         if (data.muted !== undefined) {
           hudMute.textContent = data.muted ? '🔇' : '🎙️';
-          hudMute.className = 'hud-btn ' + (data.muted ? 'muted' : '');
-          hudMute.title = data.muted ? 'আনমিউট করুন (Ctrl+Alt+M)' : 'মিউট করুন (Ctrl+Alt+M)';
+          hudMute.className = 'hud-btn mic-btn ' + (data.muted ? 'muted' : '');
+          hudMute.title = data.muted ? 'আনমিউট করুন (Ctrl+Alt+M) [মিউট আছে]' : 'মিউট করুন (Ctrl+Alt+M) [মাইক চালু]';
         }
       } else {
         isRecording = false;
         recBar.classList.remove('show');
       }
+    });
+
+    hudPause.addEventListener('click', () => {
+      window.api.hudPauseClicked();
     });
 
     hudStop.addEventListener('click', () => {
@@ -274,4 +352,3 @@
   </script>
 </body>
 </html>
-

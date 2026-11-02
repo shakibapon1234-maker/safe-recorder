@@ -3,19 +3,51 @@
   const canvas = $('cv'), ctx = canvas.getContext('2d', { alpha: false });
   let cfg = {}, blurOn = true, capStream = null, vid = null, timer = null, previewOn = false;
   let recorder = null, outStream = null, vtrack = null, audioCtx = null, micStream = null, chain = Promise.resolve();
-  let recStartT = 0, clock = null, lastFile = null, busy = false, audioMuted = false;
+  let masterGain = null;
+  let clock = null, lastFile = null, busy = false, audioMuted = false, isRecPaused = false, recSeconds = 0;
   let analyser = null, animFrame = null;
   const msg = (t) => { $('msg').textContent = t || ''; };
 
+  const formatTime = (totalSec) => {
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
   function paintUI() {
-    const rec = recorder && recorder.state === 'recording';
-    $('bRec').textContent = rec ? '⏹ রেকর্ড বন্ধ (Ctrl+Alt+R)' : '⏺ রেকর্ড শুরু (Ctrl+Alt+R)';
+    const isRecording = recorder && (recorder.state === 'recording' || recorder.state === 'paused');
+    $('bRec').textContent = isRecording ? '⏹ রেকর্ড বন্ধ (Ctrl+Alt+R)' : '⏺ রেকর্ড শুরু (Ctrl+Alt+R)';
+    $('bRec').className = isRecording ? 'off' : 'rec';
+
+    // Pause button state
+    $('bPause').disabled = !isRecording;
+    if (isRecording) {
+      if (isRecPaused) {
+        $('bPause').textContent = '▶️ পুনরায় চালু (Ctrl+Alt+P)';
+        $('bPause').className = 'paused';
+      } else {
+        $('bPause').textContent = '⏸️ পজ (Ctrl+Alt+P)';
+        $('bPause').className = '';
+      }
+    } else {
+      $('bPause').textContent = '⏸️ পজ (Ctrl+Alt+P)';
+      $('bPause').className = '';
+    }
+
     $('bBlur').className = blurOn ? 'on' : 'off';
     $('bBlur').textContent = blurOn ? '🛡 ব্লার ON (Ctrl+Alt+B)' : '⚠ ব্লার OFF (Ctrl+Alt+B)';
     $('bPrev').textContent = previewOn ? '👁 প্রিভিউ বন্ধ' : '👁 প্রিভিউ';
-    $('bMute').disabled = !rec;
-    $('bMute').textContent = audioMuted ? '🔇 আনমিউট (Ctrl+Alt+M)' : '🔊 মিউট (Ctrl+Alt+M)';
-    $('bMute').className = audioMuted ? 'off' : '';
+
+    // Mute button state
+    $('bMute').disabled = !isRecording;
+    if (audioMuted) {
+      $('bMute').textContent = '🔇 আনমিউট (Ctrl+Alt+M) [মিউট আছে]';
+      $('bMute').className = 'off';
+    } else {
+      $('bMute').textContent = '🎙️ মিউট (Ctrl+Alt+M) [মাইক চালু]';
+      $('bMute').className = 'on';
+    }
+
     const n = (cfg.boxes || []).length;
     $('boxInfo').textContent = n ? `${n}টি ব্লার এলাকা সেট করা আছে` : 'কোনো ব্লার এলাকা নেই — Ctrl+Alt+B চেপে তৈরি করুন';
     $('vS').textContent = cfg.strength;
@@ -47,7 +79,7 @@
   }
 
   function stopCapture() {
-    if (recorder && recorder.state === 'recording') return;
+    if (recorder && (recorder.state === 'recording' || recorder.state === 'paused')) return;
     if (previewOn) return;
     clearTimeout(timer);
     timer = null;
@@ -79,33 +111,35 @@
     }
   }
 
-  // Setup real-time audio volume visualizer
-  function setupAudioMeter(sourceNode) {
-    if (!audioCtx) return;
-    try {
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.5;
-      sourceNode.connect(analyser);
+  // Real-time audio volume visualizer loop
+  function startAudioMeterLoop() {
+    if (!analyser) return;
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const updateMeter = () => {
-        if (!analyser) return;
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
-        }
-        const avg = sum / dataArray.length;
-        const pct = Math.min(100, Math.round((avg / 128) * 100));
-        $('audioLevel').style.width = pct + '%';
-        $('meterText').textContent = pct + '%';
+    const updateMeter = () => {
+      if (!analyser) return;
+
+      if (audioMuted) {
+        $('audioLevel').style.width = '0%';
+        $('meterText').textContent = '🔇 MUTED (0%)';
+        $('meterLabel').textContent = '🔇 অডিও মিউট করা আছে (Muted)';
         animFrame = requestAnimationFrame(updateMeter);
-      };
-      updateMeter();
-    } catch (e) {
-      console.warn('Audio meter setup failed:', e);
-    }
+        return;
+      }
+
+      $('meterLabel').textContent = '🎙️ অডিও লেভেল ইন্ডিকেটর (Active)';
+      analyser.getByteFrequencyData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+      }
+      const avg = sum / dataArray.length;
+      const pct = Math.min(100, Math.round((avg / 128) * 100));
+      $('audioLevel').style.width = pct + '%';
+      $('meterText').textContent = pct + '%';
+      animFrame = requestAnimationFrame(updateMeter);
+    };
+    updateMeter();
   }
 
   function stopAudioMeter() {
@@ -116,6 +150,7 @@
     analyser = null;
     $('audioLevel').style.width = '0%';
     $('meterText').textContent = '0%';
+    $('meterLabel').textContent = '🎙️ অডিও লেভেল ইন্ডিকেটর';
   }
 
   async function buildAudio() {
@@ -124,13 +159,25 @@
       try { await audioCtx.resume(); } catch (e) {}
     }
     const dest = audioCtx.createMediaStreamDestination();
+
+    // masterGain controls 100% volume for recording & visualizer
+    masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(audioMuted ? 0 : 1, audioCtx.currentTime);
+    masterGain.connect(dest);
+
+    // Analyser is connected directly to masterGain so muted state shows 0%
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.4;
+    masterGain.connect(analyser);
+
     let hasAudio = false;
 
     // 1. System sound capture
     if (cfg.sys && capStream && capStream.getAudioTracks().length) {
       try {
         const sysSource = audioCtx.createMediaStreamSource(new MediaStream(capStream.getAudioTracks()));
-        sysSource.connect(dest);
+        sysSource.connect(masterGain);
         hasAudio = true;
       } catch (e) {
         console.warn('System audio connection error:', e);
@@ -150,9 +197,8 @@
         };
         micStream = await navigator.mediaDevices.getUserMedia(constraints);
         const micSource = audioCtx.createMediaStreamSource(micStream);
-        micSource.connect(dest);
+        micSource.connect(masterGain);
         hasAudio = true;
-        setupAudioMeter(micSource);
       } catch (e) {
         msg('মাইক পাওয়া যায়নি — মাইক ছাড়া রেকর্ড হচ্ছে');
         console.warn('Microphone error:', e);
@@ -171,6 +217,7 @@
       } catch (e) {}
     }
 
+    startAudioMeterLoop();
     return dest.stream.getAudioTracks()[0] || null;
   }
 
@@ -185,15 +232,15 @@
     try {
       // 3 second countdown directly in the Windows/Steam style red HUD bar
       msg('রেকর্ডিং শুরু হচ্ছে...');
-      window.api.updateRecHud({ active: true, time: '⏳ 3...', blurOn: blurOn, muted: audioMuted });
+      window.api.updateRecHud({ active: true, time: '⏳ 3...', blurOn: blurOn, muted: audioMuted, paused: false });
       $('status').textContent = '⏳ 3...';
       await new Promise(r => setTimeout(r, 1000));
 
-      window.api.updateRecHud({ active: true, time: '⏳ 2...', blurOn: blurOn, muted: audioMuted });
+      window.api.updateRecHud({ active: true, time: '⏳ 2...', blurOn: blurOn, muted: audioMuted, paused: false });
       $('status').textContent = '⏳ 2...';
       await new Promise(r => setTimeout(r, 1000));
 
-      window.api.updateRecHud({ active: true, time: '⏳ 1...', blurOn: blurOn, muted: audioMuted });
+      window.api.updateRecHud({ active: true, time: '⏳ 1...', blurOn: blurOn, muted: audioMuted, paused: false });
       $('status').textContent = '⏳ 1...';
       await new Promise(r => setTimeout(r, 1000));
 
@@ -232,9 +279,13 @@
           try { await audioCtx.close(); } catch (e) {}
           audioCtx = null;
         }
+        masterGain = null;
         vtrack = null;
         outStream = null;
         clearInterval(clock);
+        clock = null;
+        isRecPaused = false;
+        recSeconds = 0;
         $('status').textContent = '⏳ ফাইল সেভ হচ্ছে...';
         msg(cfg.mp4 ? 'MP4 তৈরি হচ্ছে, একটু অপেক্ষা করুন...' : '');
 
@@ -249,20 +300,22 @@
       };
 
       recorder.start(1000);
-      recStartT = Date.now();
+      recSeconds = 0;
+      isRecPaused = false;
       audioMuted = false;
       msg('');
 
       // Show the red Windows/Steam recording HUD immediately
-      window.api.updateRecHud({ active: true, time: '00:00', blurOn: blurOn, muted: false });
+      window.api.updateRecHud({ active: true, time: '00:00', blurOn: blurOn, muted: false, paused: false });
 
       clock = setInterval(() => {
-        const s = Math.floor((Date.now() - recStartT) / 1000);
-        const timeStr = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-        $('status').textContent = `🔴 রেকর্ড হচ্ছে ${timeStr}` + (blurOn ? '' : '  ⚠ ব্লার OFF');
-        // Update floating recording HUD bar
-        window.api.updateRecHud({ active: true, time: timeStr, blurOn: blurOn, muted: audioMuted });
-      }, 500);
+        if (!isRecPaused) {
+          recSeconds++;
+          const timeStr = formatTime(recSeconds);
+          $('status').textContent = `🔴 রেকর্ড হচ্ছে ${timeStr}` + (blurOn ? '' : '  ⚠ ব্লার OFF');
+          window.api.updateRecHud({ active: true, time: timeStr, blurOn: blurOn, muted: audioMuted, paused: false });
+        }
+      }, 1000);
 
     } catch (e) {
       msg('শুরু করা যায়নি: ' + e.message);
@@ -278,7 +331,7 @@
   }
 
   function toggleRec() {
-    if (recorder && recorder.state === 'recording') {
+    if (recorder && (recorder.state === 'recording' || recorder.state === 'paused')) {
       recorder.stop();
     } else {
       startRec();
@@ -286,10 +339,61 @@
     paintUI();
   }
 
+  // Pause / Resume Recording toggle
+  function togglePause() {
+    if (!recorder || recorder.state === 'inactive') return;
+
+    if (recorder.state === 'recording') {
+      recorder.pause();
+      isRecPaused = true;
+      paintUI();
+      $('status').textContent = `⏸️ রেকর্ডিং স্থগিত (${formatTime(recSeconds)})`;
+      msg('⏸️ রেকর্ডিং সাময়িক পজ করা হয়েছে');
+
+      window.api.updateRecHud({
+        active: true,
+        paused: true,
+        time: formatTime(recSeconds),
+        blurOn: blurOn,
+        muted: audioMuted
+      });
+
+      window.api.showToast({
+        type: 'warn',
+        title: 'রেকর্ডিং পজ করা হয়েছে (Paused)',
+        sub: 'পুনরায় চালু করতে ▶️ বা Ctrl+Alt+P চাপুন',
+        duration: 2500,
+        icon: '⏸️'
+      });
+    } else if (recorder.state === 'paused') {
+      recorder.resume();
+      isRecPaused = false;
+      paintUI();
+      $('status').textContent = `🔴 রেকর্ড হচ্ছে ${formatTime(recSeconds)}` + (blurOn ? '' : '  ⚠ ব্লার OFF');
+      msg('▶️ রেকর্ডিং পুনরায় শুরু হয়েছে');
+
+      window.api.updateRecHud({
+        active: true,
+        paused: false,
+        time: formatTime(recSeconds),
+        blurOn: blurOn,
+        muted: audioMuted
+      });
+
+      window.api.showToast({
+        type: 'blue',
+        title: 'রেকর্ডিং চালু হয়েছে (Resumed)',
+        sub: 'রেকর্ডিং পুনরায় শুরু হয়েছে',
+        duration: 2000,
+        icon: '▶️'
+      });
+    }
+  }
+
   function setBlur(v) {
     blurOn = v;
     paintUI();
-    if (recorder && recorder.state === 'recording') {
+    if (recorder && (recorder.state === 'recording' || recorder.state === 'paused')) {
       window.api.updateRecHud({ blurOn: blurOn });
     }
     if (blurOn) {
@@ -316,10 +420,14 @@
   }
 
   function toggleMute() {
-    if (!recorder || recorder.state !== 'recording') return;
     audioMuted = !audioMuted;
 
-    // Toggle track enabled states
+    // 1. Direct hardware gain cut to 0 via Web Audio API (Guaranteed absolute silence in recorded file!)
+    if (masterGain && audioCtx) {
+      masterGain.gain.setValueAtTime(audioMuted ? 0 : 1, audioCtx.currentTime);
+    }
+
+    // 2. Track enable toggles for redundancy
     if (outStream) {
       outStream.getAudioTracks().forEach((track) => {
         track.enabled = !audioMuted;
@@ -331,19 +439,28 @@
       });
     }
 
-    $('bMute').textContent = audioMuted ? '🔇 আনমিউট (Ctrl+Alt+M)' : '🔊 মিউট (Ctrl+Alt+M)';
-    $('bMute').className = audioMuted ? 'off' : '';
-    msg(audioMuted ? '🔇 অডিও মিউট করা হয়েছে' : '🔊 অডিও সক্রিয় করা হয়েছে');
+    paintUI();
 
-    // Update floating HUD bar
+    // 3. Update Audio level meter display immediately
+    if (audioMuted) {
+      $('audioLevel').style.width = '0%';
+      $('meterText').textContent = '🔇 MUTED (0%)';
+      $('meterLabel').textContent = '🔇 অডিও মিউট করা আছে (Muted)';
+    } else {
+      $('meterLabel').textContent = '🎙️ অডিও লেভেল ইন্ডিকেটর (Active)';
+    }
+
+    msg(audioMuted ? '🔇 অডিও মিউট করা হয়েছে (সাউন্ড রেকর্ড হবে না)' : '🎙️ অডিও সক্রিয় করা হয়েছে (সাউন্ড রেকর্ড হচ্ছে)');
+
+    // 4. Update floating HUD bar (turns red with crossed-out mic icon)
     window.api.updateRecHud({ muted: audioMuted });
 
-    // Show floating toast
+    // 5. Show unmistakable floating toast
     window.api.showToast({
-      type: audioMuted ? 'warn' : 'info',
-      title: audioMuted ? 'অডিও মিউট করা হয়েছে' : 'অডিও আনমিউট করা হয়েছে',
-      sub: audioMuted ? 'Audio Muted' : 'Audio Active',
-      duration: 2000,
+      type: audioMuted ? 'warn' : 'blue',
+      title: audioMuted ? '🔇 অডিও মিউট করা হয়েছে (Audio Muted)' : '🎙️ অডিও সক্রিয় (Audio Active)',
+      sub: audioMuted ? 'রেকর্ডিংয়ে কোনো সাউন্ড রেকর্ড হবে না' : 'মাইক্রোফোন ও সাউন্ড স্বাভাবিক আছে',
+      duration: 2500,
       icon: audioMuted ? '🔇' : '🎙️'
     });
 
@@ -388,6 +505,7 @@
     $('cP').checked = cfg.mp4 !== false;
 
     $('bRec').onclick = toggleRec;
+    $('bPause').onclick = togglePause;
     $('bPrev').onclick = togglePreview;
     $('bBlur').onclick = () => setBlur(!blurOn);
     $('bMute').onclick = toggleMute;
@@ -414,9 +532,8 @@
     // Global Hotkeys from main process
     window.api.onHotkey((k) => {
       if (k === 'toggle-rec') toggleRec();
+      if (k === 'toggle-pause') togglePause();
       if (k === 'blur-drag') {
-        blurOn = true;
-        window.api.openOverlay();
         paintUI();
       }
       if (k === 'toggle-mute') toggleMute();
@@ -427,9 +544,11 @@
       if (e.ctrlKey && e.altKey && e.code === 'KeyR') {
         e.preventDefault();
         toggleRec();
+      } else if (e.ctrlKey && e.altKey && e.code === 'KeyP') {
+        e.preventDefault();
+        togglePause();
       } else if (e.ctrlKey && e.altKey && e.code === 'KeyB') {
         e.preventDefault();
-        blurOn = true;
         window.api.openOverlay();
         paintUI();
       } else if ((e.ctrlKey && e.altKey && e.code === 'KeyM') || (e.code === 'KeyM' && !e.ctrlKey && !e.altKey && !['INPUT', 'SELECT'].includes(e.target.tagName))) {

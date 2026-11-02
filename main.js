@@ -41,7 +41,7 @@ function createWin() {
 function getHudWin() {
   if (hudWin && !hudWin.isDestroyed()) return hudWin;
   const d = screen.getPrimaryDisplay();
-  const width = 440;
+  const width = 480;
   const height = 66;
   hudWin = new BrowserWindow({
     x: Math.round(d.bounds.x + (d.bounds.width - width) / 2),
@@ -190,6 +190,9 @@ app.whenReady().then(() => {
   ipcMain.on('hide-rec-hud', () => {
     hideHud();
   });
+  ipcMain.on('hud-pause-clicked', () => {
+    if (win) win.webContents.send('hotkey', 'toggle-pause');
+  });
   ipcMain.on('hud-stop-clicked', () => {
     if (win) win.webContents.send('hotkey', 'toggle-rec');
   });
@@ -266,10 +269,12 @@ app.whenReady().then(() => {
 
   // Safe global hotkeys:
   // Ctrl+Alt+R = Record Toggle
+  // Ctrl+Alt+P = Pause / Resume Recording Toggle
   // Ctrl+Alt+B = Blur Toggle / Drag Overlay
   // Ctrl+Alt+M = Mic Mute Toggle
   const keys = {
     'CommandOrControl+Alt+R': 'toggle-rec',
+    'CommandOrControl+Alt+P': 'toggle-pause',
     'CommandOrControl+Alt+B': 'blur-drag',
     'CommandOrControl+Alt+M': 'toggle-mute'
   };
